@@ -1,0 +1,14 @@
+# Python Cache
+__pycache__/
+
+# Logs
+.log
+_logs
+
+# Data
+_data
+.nrrd
+.json
+
+# Code
+tmp/
