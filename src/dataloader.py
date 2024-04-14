@@ -15,7 +15,7 @@ import traceback
 import torchvision
 import numpy as np
 from pathlib import Path
-
+import pandas as pd
 class PatientDataset(torch.utils.data.Dataset):
 
     def __init__(self, dirParams, sliceParams, verbose=False):
@@ -628,145 +628,166 @@ class PointAndScribbleDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     
-    DIR_FILE = Path(__file__).resolve().parent.absolute() # ./src
-    DIR_ROOT = DIR_FILE.parent.absolute() # ./
-    DIR_DATA = DIR_ROOT / '_data'    
-
-    # Step 1 - Dataloader params
-    if 1:
-        dirParams = {
-            config.KEY_DIR_DATA_OG: DIR_DATA / 'trial1',
-            config.KEY_REGEX_CT: 'img1',
-            config.KEY_REGEX_PET: 'img2',
-            config.KEY_REGEX_GT: 'mask',
-            config.KEY_REGEX_PRED: 'pred',
-            config.KEY_EXT: config.EXT_NRRD,
-            config.KEY_STRFMT_CT: 'nrrd_{}_{}{}'.format('{}', 'img1', config.EXT_NRRD),
-            config.KEY_STRFMT_PET: 'nrrd_{}_{}{}'.format('{}', 'img2', config.EXT_NRRD),
-            config.KEY_STRFMT_GT: 'nrrd_{}_{}{}'.format('{}', 'mask', config.EXT_NRRD),
-            config.KEY_STRFMT_PRED: 'nrrd_{}_{}{}'.format('{}', 'maskpred', config.EXT_NRRD)
-        }
-
-        sliceParams = {
-            config.KEY_PERVIEW_SLICES: 5,
-            config.KEY_KSIZE_SEGFAILURE: (3,3,3),
-            config.KEY_LABEL: 1,
-            config.KEY_INTERACTION_TYPE: [config.KEY_INTERACTION_SCRIBBLES], # [config.KEY_INTERACTION_POINTS, config.KEY_INTERACTION_SCRIBBLES]
-            config.KEY_SCRIBBLE_TYPE: [config.KEY_SCRIBBLE_MEDIAL_AXIS] # config.KEY_SCRIBBLE_RANDOM, config.KEY_SCRIBBLE_MEDIAL_AXIS
-        }
-        
-        # Define transformations
-        transform = torchvision.transforms.Compose([
-        #     transforms.Resize((256, 256)),
-        #     transforms.ToTensor()
-        ])
-    
-    # just PointAndScribbleDataset (baseline)
-    if 1:
-        # Step 2 - Create dataset
-        dataset = PointAndScribbleDataset(dirParams, sliceParams, transform=transform)
-        
-        # Step 3 - Create dataloader
-        epochs = 2
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=False
-                                                , num_workers=4 #, prefetch_factor=2
-                                                , pin_memory=True, pin_memory_device=config.nameGPU
-                                                # , num_workers=0, pin_memory=True
-                                                )
-        
-        # Iterate over the dataset
-        for epoch_ in range(epochs):
-            print (' ------------------------------------- Epoch: ', epoch_)
-            with tqdm.tqdm(total=len(dataset), desc='Epoch: {}'.format(epoch_)) as pbar:
-                for i, (x1,x2,y1,y2,z1,z2, meta) in enumerate(dataloader):
-                    x1 = x1.to(config.nameGPU)
-                    x2 = x2.to(config.nameGPU)
-                    y1 = y1.to(config.nameGPU)
-                    y2 = y2.to(config.nameGPU)
-                    z1 = z1.to(config.nameGPU)
-                    z2 = z2.to(config.nameGPU)
-                    # print (' -------------- meta: ', meta)
-                    dataset.show(x1, x2, y1, y2, z1, z2, meta, sliceCount=7)
+    dt_all = {'workers': [],
+                        'batch_size': [],
+                        'cost_time': [],
+                        'speed': [],
+                        }
+    for workers_nb in [1,2,4,8]:
+        for bs in [1,2,4,8]:
+            print(f"workers: {workers_nb}, batch size: {bs} ---------start--------")
                     
-                    # if i == 5:
-                    #     break
-                    # pdb.set_trace()
-                    pbar.update(x1.shape[0])
-    
-    # just PatientDataset
-    elif 0:
+            DIR_FILE = Path(__file__).resolve().parent.absolute() # ./src
+            DIR_ROOT = DIR_FILE.parent.absolute() # ./
+            DIR_DATA = DIR_ROOT / '_data'    
 
-        t0 = time.time()
-        epochs = 3
-        patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
-        patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=2, persistent_workers=True)
-        for _ in range(epochs):
-            with tqdm.tqdm(total=len(patientDataset), desc='Epoch: {}'.format(0)) as pbar:
-                for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal) in enumerate(patientDataloader):
-                    # print (' - [main] i: ', i, xCT.shape)
-                    pbar.update(xCT.shape[0])
-        print (' - [main] Time taken: ', round(time.time() - t0),2, 's')
-    
-    # patientDataset and annotationDataset (v1)
-    elif 0:
+            # Step 1 - Dataloader params
+            if 1:
+                dirParams = {
+                    config.KEY_DIR_DATA_OG: DIR_DATA / 'trial1',
+                    config.KEY_REGEX_CT: 'img1',
+                    config.KEY_REGEX_PET: 'img2',
+                    config.KEY_REGEX_GT: 'mask',
+                    config.KEY_REGEX_PRED: 'pred',
+                    config.KEY_EXT: config.EXT_NRRD,
+                    config.KEY_STRFMT_CT: 'nrrd_{}_{}{}'.format('{}', 'img1', config.EXT_NRRD),
+                    config.KEY_STRFMT_PET: 'nrrd_{}_{}{}'.format('{}', 'img2', config.EXT_NRRD),
+                    config.KEY_STRFMT_GT: 'nrrd_{}_{}{}'.format('{}', 'mask', config.EXT_NRRD),
+                    config.KEY_STRFMT_PRED: 'nrrd_{}_{}{}'.format('{}', 'maskpred', config.EXT_NRRD)
+                }
 
-        t0 = time.time()
-        epochs = 3
-        patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
-        patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=1, persistent_workers=True)
-        for _ in range(epochs):
-            with tqdm.tqdm(total=len(patientDataset) * sliceParams[config.KEY_PERVIEW_SLICES] * 3, desc=' - Epoch: {}'.format(0)) as pbar:
-                for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName) in enumerate(patientDataloader):
-                    print (' - [main] i: ', i, patientName)
-                    annotationDataset = AnnotationDataset(dirParams, sliceParams, xCT[0], xPET[0], yGT[0], yPred[0], errorFP[0], errorFN[0], idxsSortedAxial[0], idxsSortedSagittal[0], idxsSortedCoronal[0], patientName[0], verbose=False)
-                    annotationDataloader = torch.utils.data.DataLoader(annotationDataset, batch_size=4, shuffle=False, num_workers=4, prefetch_factor=1)
-                    for (z1, z2, meta) in annotationDataloader:
-                        print (' - [main] patientName: {} || meta: {}'.format(patientName, meta))
-                        pbar.update(4)
-    
-    # patientDataset and annotationDataset (v2)
-    elif 0:
+                sliceParams = {
+                    config.KEY_PERVIEW_SLICES: 5,
+                    config.KEY_KSIZE_SEGFAILURE: (3,3,3),
+                    config.KEY_LABEL: 1,
+                    config.KEY_INTERACTION_TYPE: [config.KEY_INTERACTION_SCRIBBLES], # [config.KEY_INTERACTION_POINTS, config.KEY_INTERACTION_SCRIBBLES]
+                    config.KEY_SCRIBBLE_TYPE: [config.KEY_SCRIBBLE_MEDIAL_AXIS] # config.KEY_SCRIBBLE_RANDOM, config.KEY_SCRIBBLE_MEDIAL_AXIS
+                }
+                
+                # Define transformations
+                transform = torchvision.transforms.Compose([
+                #     transforms.Resize((256, 256)),
+                #     transforms.ToTensor()
+                ])
+            
+            # just PointAndScribbleDataset (baseline)
+            if 1:
+                # Step 2 - Create dataset
+                dataset = PointAndScribbleDataset(dirParams, sliceParams, transform=transform)
+                
+                # Step 3 - Create dataloader
+                epochs = 4
+                dataloader = torch.utils.data.DataLoader(dataset, batch_size=bs, shuffle=False
+                                                        , num_workers=workers_nb #, prefetch_factor=2
+                                                        , pin_memory=True, pin_memory_device=config.nameGPU
+                                                        # , num_workers=0, pin_memory=True
+                                                        )
+                
+                # Iterate over the dataset
+                for epoch_ in range(epochs):
+                    print (' ------------------------------------- Epoch: ', epoch_)
+                    t1 = time.time()
+                    with tqdm.tqdm(total=len(dataset), desc='Epoch: {}'.format(epoch_)) as pbar:
+                        for i, (x1,x2,y1,y2,z1,z2, meta) in enumerate(dataloader):
+                            x1 = x1.to(config.nameGPU)
+                            x2 = x2.to(config.nameGPU)
+                            y1 = y1.to(config.nameGPU)
+                            y2 = y2.to(config.nameGPU)
+                            z1 = z1.to(config.nameGPU)
+                            z2 = z2.to(config.nameGPU)
+                            # print (' -------------- meta: ', meta)
+                            # dataset.show(x1, x2, y1, y2, z1, z2, meta, sliceCount=7)
+                            
+                            # if i == 5:
+                            #     break
+                            # pdb.set_trace()
+                            pbar.update(x1.shape[0])
+                    t2 = time.time()
+                    dt = t2-t1 
+                    print(f"time cost: {dt}, speed: {855/dt}")
+                    dt_all['workers'].append(workers_nb)
+                    dt_all['batch_size'].append(bs)
+                    dt_all['cost_time'].append(dt)
+                    dt_all['speed'].append(855/dt)
+          
+            # just PatientDataset
+            elif 0:
 
-        t0 = time.time()
-        epochs = 3
-        patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
-        patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=1, persistent_workers=True)
-        for _ in range(epochs):
-            with tqdm.tqdm(total=len(patientDataset) * sliceParams[config.KEY_PERVIEW_SLICES] * 3, desc=' - Epoch: {}'.format(0)) as pbar:
-                for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName) in enumerate(patientDataloader):
-                    print ('\n - [main] i: ', i, patientName)
+                t0 = time.time()
+                epochs = 3
+                patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
+                patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=2, persistent_workers=True)
+                for _ in range(epochs):
+                    with tqdm.tqdm(total=len(patientDataset), desc='Epoch: {}'.format(0)) as pbar:
+                        for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal) in enumerate(patientDataloader):
+                            # print (' - [main] i: ', i, xCT.shape)
+                            pbar.update(xCT.shape[0])
+                print (' - [main] Time taken: ', round(time.time() - t0),2, 's')
+            
+            # patientDataset and annotationDataset (v1)
+            elif 0:
 
-                    if 0:
-                        if i == 0:
+                t0 = time.time()
+                epochs = 3
+                patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
+                patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=1, persistent_workers=True)
+                for _ in range(epochs):
+                    with tqdm.tqdm(total=len(patientDataset) * sliceParams[config.KEY_PERVIEW_SLICES] * 3, desc=' - Epoch: {}'.format(0)) as pbar:
+                        for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName) in enumerate(patientDataloader):
+                            print (' - [main] i: ', i, patientName)
                             annotationDataset = AnnotationDataset(dirParams, sliceParams, xCT[0], xPET[0], yGT[0], yPred[0], errorFP[0], errorFN[0], idxsSortedAxial[0], idxsSortedSagittal[0], idxsSortedCoronal[0], patientName[0], verbose=False)
-                            annotationDataloader = torch.utils.data.DataLoader(annotationDataset, batch_size=4, shuffle=False, num_workers=4, prefetch_factor=4)
-                        else:
-                            annotationDataset.xCT = np.array(xCT[0])
-                            annotationDataset.xPET = np.array(xPET[0])
-                            annotationDataset.yGT = np.array(yGT[0])
-                            annotationDataset.yPred = np.array(yPred[0])
-                            annotationDataset.errorFP = np.array(errorFP[0])
-                            annotationDataset.errorFN = np.array(errorFN[0])
-                            annotationDataset.idxsSortedAxial = np.array(idxsSortedAxial[0])
-                            annotationDataset.idxsSortedSagittal = np.array(idxsSortedSagittal[0])
-                            annotationDataset.idxsSortedCoronal = np.array(idxsSortedCoronal[0])
-                            annotationDataset.patientName = patientName[0]
-                        
-                    for (z1, z2, meta) in annotationDataloader:
-                        print (' - [main] patientName: {} || meta: {}'.format(patientName, meta))
-                        pbar.update(4)
+                            annotationDataloader = torch.utils.data.DataLoader(annotationDataset, batch_size=4, shuffle=False, num_workers=4, prefetch_factor=1)
+                            for (z1, z2, meta) in annotationDataloader:
+                                print (' - [main] patientName: {} || meta: {}'.format(patientName, meta))
+                                pbar.update(4)
+            
+            # patientDataset and annotationDataset (v2)
+            elif 0:
 
-        print (' - [main] Time taken: ', round(time.time() - t0),2, 's')
-"""
-Data: Z:\2021_HECKTOR_HNTumorAuto\_models\FocusNetV4ResV2-LR10e3I20__ValCenterFold5-B2-NewWindowing__CEF095B005__seed42\ckpt_epoch1000\images\Test\patches
-"""
+                t0 = time.time()
+                epochs = 3
+                patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
+                patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=1, persistent_workers=True)
+                for _ in range(epochs):
+                    with tqdm.tqdm(total=len(patientDataset) * sliceParams[config.KEY_PERVIEW_SLICES] * 3, desc=' - Epoch: {}'.format(0)) as pbar:
+                        for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName) in enumerate(patientDataloader):
+                            print ('\n - [main] i: ', i, patientName)
 
-"""
-I have a pytorch dataset that reads 3D volumes, does some heavy processing, and retuns them. 
-I need to create an array of max length=N, that is shared between the workers. 
-So if a patients volume is already read by a worker, the other workers simply access that in shared memory. 
+                            if 0:
+                                if i == 0:
+                                    annotationDataset = AnnotationDataset(dirParams, sliceParams, xCT[0], xPET[0], yGT[0], yPred[0], errorFP[0], errorFN[0], idxsSortedAxial[0], idxsSortedSagittal[0], idxsSortedCoronal[0], patientName[0], verbose=False)
+                                    annotationDataloader = torch.utils.data.DataLoader(annotationDataset, batch_size=4, shuffle=False, num_workers=4, prefetch_factor=4)
+                                else:
+                                    annotationDataset.xCT = np.array(xCT[0])
+                                    annotationDataset.xPET = np.array(xPET[0])
+                                    annotationDataset.yGT = np.array(yGT[0])
+                                    annotationDataset.yPred = np.array(yPred[0])
+                                    annotationDataset.errorFP = np.array(errorFP[0])
+                                    annotationDataset.errorFN = np.array(errorFN[0])
+                                    annotationDataset.idxsSortedAxial = np.array(idxsSortedAxial[0])
+                                    annotationDataset.idxsSortedSagittal = np.array(idxsSortedSagittal[0])
+                                    annotationDataset.idxsSortedCoronal = np.array(idxsSortedCoronal[0])
+                                    annotationDataset.patientName = patientName[0]
+                                
+                            for (z1, z2, meta) in annotationDataloader:
+                                print (' - [main] patientName: {} || meta: {}'.format(patientName, meta))
+                                pbar.update(4)
 
-These volumes are then read by another dataset that turns these volumes into slices, again with some heavy processing. 
+                print (' - [main] Time taken: ', round(time.time() - t0),2, 's')
+        
+    df = pd.DataFrame(dt_all)
+    df.to_csv('dataloader1_table.csv', index=False)  # index=False 表示不保存索引
+    print(f"finishe all!")
+        """
+        Data: Z:\2021_HECKTOR_HNTumorAuto\_models\FocusNetV4ResV2-LR10e3I20__ValCenterFold5-B2-NewWindowing__CEF095B005__seed42\ckpt_epoch1000\images\Test\patches
+        """
 
-How do I build these dataset and dataloaders using torch.multiprocessing to do this?
-"""
+        """
+        I have a pytorch dataset that reads 3D volumes, does some heavy processing, and retuns them. 
+        I need to create an array of max length=N, that is shared between the workers. 
+        So if a patients volume is already read by a worker, the other workers simply access that in shared memory. 
+
+        These volumes are then read by another dataset that turns these volumes into slices, again with some heavy processing. 
+
+        How do I build these dataset and dataloaders using torch.multiprocessing to do this?
+        """
