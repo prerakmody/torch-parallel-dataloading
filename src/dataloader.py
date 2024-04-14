@@ -778,16 +778,16 @@ if __name__ == "__main__":
     df = pd.DataFrame(dt_all)
     df.to_csv('dataloader1_table.csv', index=False)  # index=False 表示不保存索引
     print(f"finishe all!")
-        """
-        Data: Z:\2021_HECKTOR_HNTumorAuto\_models\FocusNetV4ResV2-LR10e3I20__ValCenterFold5-B2-NewWindowing__CEF095B005__seed42\ckpt_epoch1000\images\Test\patches
-        """
+"""
+Data: Z:\2021_HECKTOR_HNTumorAuto\_models\FocusNetV4ResV2-LR10e3I20__ValCenterFold5-B2-NewWindowing__CEF095B005__seed42\ckpt_epoch1000\images\Test\patches
+"""
 
-        """
-        I have a pytorch dataset that reads 3D volumes, does some heavy processing, and retuns them. 
-        I need to create an array of max length=N, that is shared between the workers. 
-        So if a patients volume is already read by a worker, the other workers simply access that in shared memory. 
+"""
+I have a pytorch dataset that reads 3D volumes, does some heavy processing, and retuns them. 
+I need to create an array of max length=N, that is shared between the workers. 
+So if a patients volume is already read by a worker, the other workers simply access that in shared memory. 
 
-        These volumes are then read by another dataset that turns these volumes into slices, again with some heavy processing. 
+These volumes are then read by another dataset that turns these volumes into slices, again with some heavy processing. 
 
-        How do I build these dataset and dataloaders using torch.multiprocessing to do this?
-        """
+How do I build these dataset and dataloaders using torch.multiprocessing to do this?
+"""
