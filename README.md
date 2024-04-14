@@ -6,8 +6,8 @@
     - ```
       conda create -n interactive-refinement python=3.9
       conda activate interactive-refinement
-      git clone git@git.lumc.nl:image-registration/human-centric-ai/hcai-interactive-models.git
-      cd hcai-interactive-models
+      git clone git@github.com:prerakmody/torch-parallel-dataloading.git
+      cd torch-parallel-dataloading
       git checkout main
       conda develop . # adds the current directory to the conda environment path
       ```
