@@ -101,3 +101,7 @@ KEY_LOSS_DICE = 'dice'
 
 KEY_MODEL_SAVE_RATE = 'model_save_rate'
 KEY_NEURALNET = 'neuralnet'
+
+KEY_WORKERS = 'workers'
+KEY_TIMELIST = 'timeList'
+KEY_ITERPERSEC = 'iterPerSec'

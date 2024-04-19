@@ -9,6 +9,7 @@ _logs
 _data
 .nrrd
 .json
+.png
 
 # Code
 tmp/

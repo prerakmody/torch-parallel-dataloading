@@ -501,7 +501,7 @@ def getPatientNamesAndPaths(dirParams, verbose=False):
             dirDataOG = dirParams[config.KEY_DIR_DATA_OG]
             fileExt   = dirParams[config.KEY_EXT]
             regexCT   = dirParams[config.KEY_REGEX_CT]
-            regexStrFormatCT = str(dirParams[config.KEY_STRFMT_CT]).replace('.','\.').replace('{}', '(.+)')
+            regexStrFormatCT = str(dirParams[config.KEY_STRFMT_CT]).replace('.','\\.').replace('{}', '(.+)')
 
             # Step 1 - Get patient names and paths
             patientPaths = {}

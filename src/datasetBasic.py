@@ -16,193 +16,6 @@ import torchvision
 import numpy as np
 from pathlib import Path
 import pandas as pd
-class PatientDataset(torch.utils.data.Dataset):
-
-    def __init__(self, dirParams, sliceParams, verbose=False):
-        
-        # Step 1 - Set parameters
-        self.dirParams = dirParams
-        self.sliceParams = sliceParams
-        self.verbose   = verbose
-
-        # Step 2 - Get patient names and paths
-        self._getPatientNamesAndPaths()
-
-    def _getPatientNamesAndPaths(self):
-
-        try:
-            
-            tFiles = time.time()
-            dirDataOG = self.dirParams[config.KEY_DIR_DATA_OG]
-            fileExt = self.dirParams[config.KEY_EXT]
-            regexCT = self.dirParams[config.KEY_REGEX_CT]
-            regexPET = self.dirParams[config.KEY_REGEX_PET]
-            regexGT = self.dirParams[config.KEY_REGEX_GT]
-            regexPred = self.dirParams[config.KEY_REGEX_PRED]
-
-            regexStrFormatCT = str(self.dirParams[config.KEY_STRFMT_CT]).replace('.','\.').replace('{}', '(.+)')
-
-            self.patientPaths = {}
-            self.patientNames = {}
-            patientId         = 0
-            for fileName in Path(dirDataOG).rglob('*' + regexCT + '*'):
-                if fileName.suffix == fileExt:
-                    match = re.search(regexStrFormatCT, fileName.parts[-1])
-                    if match:
-                        patientName = match.group(1)    
-                        self.patientNames[patientId] = patientName
-                        patientId += 1
-                        self.patientPaths[patientName] = {
-                            config.KEY_CT  : Path(dirDataOG) / self.dirParams[config.KEY_STRFMT_CT].format(patientName),
-                            config.KEY_PET : Path(dirDataOG) / self.dirParams[config.KEY_STRFMT_PET].format(patientName),
-                            config.KEY_GT  : Path(dirDataOG) / self.dirParams[config.KEY_STRFMT_PRED].format(patientName),
-                            config.KEY_PRED: Path(dirDataOG) / self.dirParams[config.KEY_STRFMT_GT].format(patientName)
-                        }
-            
-            assert len(self.patientNames) * 4 == len(list(Path(dirDataOG).glob('*' + fileExt))), 'Number of patients and number of files do not match'
-            if self.verbose: print (' - [PatientDataset._getPatientNamesAndPaths()] Time taken: ', round(time.time() - tFiles,2))
-
-        except:
-            traceback.print_exc()
-            pdb.set_trace()
-
-    def __len__(self):
-        return len(self.patientNames)
-
-    def __getitem__(self, idx):
-        
-        # Step 0 - Init
-        patientName = self.patientNames[idx]
-        xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal = None, None, None, None, None, None, None, None, None
-        badPatientData = True
-
-        # Step 1 - Load patient volumes (and some base preprocessing)
-        try:
-            
-            # Step 1.0 - Debug
-            if self.verbose:
-                workerId = torch.utils.data.get_worker_info().id if torch.utils.data.get_worker_info() else 0
-                # print (' - [PatientDataset.__getitem__()][worker={}] Loading volumes for patient: {}'.format(workerId, patientName))
-
-            # Step 1.1 - Get CT
-            arrayCT, _ = nrrd.read(self.patientPaths[patientName][config.KEY_CT])
-            if len(arrayCT.shape) != 3: print (' - [PointAndScribbleDataset._getPatientData()] CT volume is not 3D')        
-
-            # Step 1.2 - Get PET
-            arrayPT, _ = nrrd.read(self.patientPaths[patientName][config.KEY_PET])
-            if len(arrayPT.shape) != 3: print (' - [PointAndScribbleDataset._getPatientData()] PET volume is not 3D')
-
-            # Step 1.3 - Get GT
-            arrayMaskGT, _  = nrrd.read(self.patientPaths[patientName][config.KEY_GT])
-            if len(arrayMaskGT.shape) != 3: print (' - [PointAndScribbleDataset._getPatientData()] GT volume is not 3D')
-            arrayMaskGTLabel = utils.getMaskForLabel(arrayMaskGT, self.sliceParams[config.KEY_LABEL])
-
-            # Step 1.4 - Get Pred
-            arrayMaskPred, _ = nrrd.read(self.patientPaths[patientName][config.KEY_PRED])
-            if len(arrayMaskPred.shape) != 3: print (' - [PointAndScribbleDataset._getPatientData()] Pred volume is not 3D')
-            arrayMaskPredLabel = utils.getMaskForLabel(arrayMaskPred, self.sliceParams[config.KEY_LABEL])
-
-            # Step 1.5 - Get failure areas
-            failureAreasTorch, failureAreasFalseNegativesTorch, failureAreasFalsePositivesTorch = utils.getFailureAreasTorch(arrayMaskGTLabel, arrayMaskPredLabel, self.sliceParams[config.KEY_KSIZE_SEGFAILURE])
-            if failureAreasTorch is None: 
-                return xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal
-
-            # Step 1.6 - Get failure areas (sorted in descending order of area)
-            idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, failureAreaSumAxial, failureAreaSumSagittal, failureAreaSumCoronal = utils.getFailureAreasStatsByView(failureAreasTorch)
-
-            xCT = arrayCT
-            xPET = arrayPT
-            yGT = arrayMaskGTLabel
-            yPred = arrayMaskPredLabel
-            errorFP = np.array(failureAreasFalsePositivesTorch)
-            errorFN = np.array(failureAreasFalseNegativesTorch)
-            badPatientData = False
-
-        except:
-            traceback.print_exc()
-            pdb.set_trace()
-            badPatientData = True
-        
-        return xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName
-
-class AnnotationDataset(torch.utils.data.Dataset):
-
-    def __init__(self, dirParams, sliceParams, xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName, verbose=False):
-        
-        # Step 1 - Set parameters
-        self.dirParams = dirParams
-        self.sliceParams = sliceParams
-        self.verbose   = verbose
-
-        # Step 2 - Set patient data
-        self.xCT     = np.array(xCT)
-        self.xPET    = np.array(xPET)
-        self.yGT     = np.array(yGT)
-        self.yPred   = np.array(yPred)
-        self.errorFP = np.array(errorFP)
-        self.errorFN = np.array(errorFN)
-        self.idxsSortedAxial    = np.array(idxsSortedAxial)
-        self.idxsSortedSagittal = np.array(idxsSortedSagittal)
-        self.idxsSortedCoronal  = np.array(idxsSortedCoronal)
-        self.patientName = str(patientName)
-
-        # Step 2 - Get patient names and paths
-        self.perPatientSlices = 3 * sliceParams[config.KEY_PERVIEW_SLICES]
-
-    def __len__(self):
-        return self.perPatientSlices
-    
-    def __getitem__(self, idx):
-        
-        # Step 0 - Init
-        requestedSliceId     = idx % self.perPatientSlices
-        interactionType = self.sliceParams[config.KEY_INTERACTION_TYPE]
-        slicesPerView = self.sliceParams[config.KEY_PERVIEW_SLICES]
-        axialBool, sagittalBool, coronalBool = False, False, False # for debugging
-        z1, z2 = None, None
-        
-        # Step 1.1 - For axial view
-        if 0 <= requestedSliceId < 1*slicesPerView:
-        # if 1*slicesPerView <= requestedSliceId < 2*slicesPerView: # [TODO: Just for debugging]
-            axialBool = True
-            axialIdx  = self.idxsSortedAxial[:slicesPerView][requestedSliceId % 3] 
-
-            interactionDistanceMapVolume, interactionType, interactionClass  = utils.getDistMapVolume(self.errorFP, self.errorFN, axialIdx, config.KEY_AXIAL, self.sliceParams, self.patientName)
-            meta = [self.patientName, interactionType, interactionClass, config.KEY_AXIAL, axialIdx]
-
-        # Step 1.2 - For sagittal view
-        elif 1*slicesPerView <= requestedSliceId < 2*slicesPerView:
-        # elif 0 <= requestedSliceId < 1*slicesPerView: # [TODO: Just for debugging]
-        # elif 2*slicesPerView <= requestedSliceId < 3*slicesPerView: # [TODO: Just for debugging]
-            sagittalBool = True
-            sagittalIdx  = self.idxsSortedSagittal[:slicesPerView][requestedSliceId % 3]
-
-            interactionDistanceMapVolume, interactionType, interactionClass  = utils.getDistMapVolume(self.errorFP, self.errorFN, sagittalIdx, config.KEY_SAGITTAL, self.sliceParams, self.patientName)
-            meta = [self.patientName, interactionType, interactionClass, config.KEY_SAGITTAL, sagittalIdx]
-        
-        # Step 1.3 - For coronal view
-        elif 2*slicesPerView <= requestedSliceId < 3*slicesPerView:
-        # elif 0 <= requestedSliceId < 1*slicesPerView: # [TODO: Just for debugging]
-            coronalBool = True
-            coronalIdx  = self.idxsSortedCoronal[:slicesPerView][requestedSliceId % 3]
-
-            interactionDistanceMapVolume, interactionType, interactionClass  = utils.getDistMapVolume(self.errorFP, self.errorFN, coronalIdx, config.KEY_CORONAL, self.sliceParams, self.patientName)
-            meta = [self.patientName, interactionType, interactionClass, config.KEY_CORONAL, coronalIdx]
-
-        if interactionDistanceMapVolume is not None:
-            if interactionClass == config.KEY_INTERACTION_FGD:
-                z1 = torch.tensor(interactionDistanceMapVolume)
-                z2 = torch.zeros_like(z1)
-            elif interactionClass == config.KEY_INTERACTION_BGD:
-                z2 = torch.tensor(interactionDistanceMapVolume)
-                z1 = torch.zeros_like(z2)
-            
-        else:
-            viewStr = 'Axial' if axialBool else 'Sagittal' if sagittalBool else 'Coronal'
-            print (' - [PointAndScribbleDataset._getPatientData()] interactionDistanceMapVolume is None || requestedPatient: {} || requestedSliceId: {}, view: {}'.format(requestedPatient, requestedSliceId, viewStr))
-            z1, z2 = None, None
-        
-        return z1, z2, meta
 
 class PointAndScribbleDataset(torch.utils.data.Dataset):
     
@@ -213,7 +26,7 @@ class PointAndScribbleDataset(torch.utils.data.Dataset):
         self.sliceParams = sliceParams
         self.transform   = transform
         self.verbose     = verbose
-
+        
         # Step 2 - Get patient names and paths
         self._getPatientNamesAndPaths()
 
@@ -235,13 +48,14 @@ class PointAndScribbleDataset(torch.utils.data.Dataset):
             regexGT = self.dirParams[config.KEY_REGEX_GT]
             regexPred = self.dirParams[config.KEY_REGEX_PRED]
 
-            regexStrFormatCT = str(self.dirParams[config.KEY_STRFMT_CT]).replace('.','\.').replace('{}', '(.+)')
+            regexStrFormatCT = str(self.dirParams[config.KEY_STRFMT_CT]).replace('.','\\.').replace('{}', '(.+)')
 
             self.patientPaths = {}
             self.patientNames = {}
             patientId         = 0
             for fileName in Path(dirDataOG).rglob('*' + regexCT + '*'):
                 if fileName.suffix == fileExt:
+                    # print (' - [PointAndScribbleDataset._getPatientNamesAndPaths()] fileName: ', fileName.parts[-1])
                     match = re.search(regexStrFormatCT, fileName.parts[-1])
                     if match:
                         patientName = match.group(1)    
@@ -261,7 +75,10 @@ class PointAndScribbleDataset(torch.utils.data.Dataset):
             pdb.set_trace()
 
     def __len__(self):
-        return len(self.patientNames) * self.perPatientSlices
+        dataloaderLen = len(self.patientNames) * self.perPatientSlices
+        # if 0: dataloaderLen = 40; print (' - [PointAndScribbleDataloader.__len__()] dataloader length is set to 40')
+
+        return dataloaderLen
 
     def _resetCurrentPatientObjToThisPatient(self, requestedPatientName):
          self.currentPatientObj = {requestedPatientName: {
@@ -710,84 +527,7 @@ if __name__ == "__main__":
                     dt_all['cost_time'].append(dt)
                     dt_all['speed'].append(855/dt)
           
-            # just PatientDataset
-            elif 0:
-
-                t0 = time.time()
-                epochs = 3
-                patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
-                patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=2, persistent_workers=True)
-                for _ in range(epochs):
-                    with tqdm.tqdm(total=len(patientDataset), desc='Epoch: {}'.format(0)) as pbar:
-                        for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal) in enumerate(patientDataloader):
-                            # print (' - [main] i: ', i, xCT.shape)
-                            pbar.update(xCT.shape[0])
-                print (' - [main] Time taken: ', round(time.time() - t0),2, 's')
-            
-            # patientDataset and annotationDataset (v1)
-            elif 0:
-
-                t0 = time.time()
-                epochs = 3
-                patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
-                patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=1, persistent_workers=True)
-                for _ in range(epochs):
-                    with tqdm.tqdm(total=len(patientDataset) * sliceParams[config.KEY_PERVIEW_SLICES] * 3, desc=' - Epoch: {}'.format(0)) as pbar:
-                        for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName) in enumerate(patientDataloader):
-                            print (' - [main] i: ', i, patientName)
-                            annotationDataset = AnnotationDataset(dirParams, sliceParams, xCT[0], xPET[0], yGT[0], yPred[0], errorFP[0], errorFN[0], idxsSortedAxial[0], idxsSortedSagittal[0], idxsSortedCoronal[0], patientName[0], verbose=False)
-                            annotationDataloader = torch.utils.data.DataLoader(annotationDataset, batch_size=4, shuffle=False, num_workers=4, prefetch_factor=1)
-                            for (z1, z2, meta) in annotationDataloader:
-                                print (' - [main] patientName: {} || meta: {}'.format(patientName, meta))
-                                pbar.update(4)
-            
-            # patientDataset and annotationDataset (v2)
-            elif 0:
-
-                t0 = time.time()
-                epochs = 3
-                patientDataset = PatientDataset(dirParams, sliceParams, verbose=False)
-                patientDataloader = torch.utils.data.DataLoader(patientDataset, batch_size=1, shuffle=False, num_workers=2, prefetch_factor=1, persistent_workers=True)
-                for _ in range(epochs):
-                    with tqdm.tqdm(total=len(patientDataset) * sliceParams[config.KEY_PERVIEW_SLICES] * 3, desc=' - Epoch: {}'.format(0)) as pbar:
-                        for i, (xCT, xPET, yGT, yPred, errorFP, errorFN, idxsSortedAxial, idxsSortedSagittal, idxsSortedCoronal, patientName) in enumerate(patientDataloader):
-                            print ('\n - [main] i: ', i, patientName)
-
-                            if 0:
-                                if i == 0:
-                                    annotationDataset = AnnotationDataset(dirParams, sliceParams, xCT[0], xPET[0], yGT[0], yPred[0], errorFP[0], errorFN[0], idxsSortedAxial[0], idxsSortedSagittal[0], idxsSortedCoronal[0], patientName[0], verbose=False)
-                                    annotationDataloader = torch.utils.data.DataLoader(annotationDataset, batch_size=4, shuffle=False, num_workers=4, prefetch_factor=4)
-                                else:
-                                    annotationDataset.xCT = np.array(xCT[0])
-                                    annotationDataset.xPET = np.array(xPET[0])
-                                    annotationDataset.yGT = np.array(yGT[0])
-                                    annotationDataset.yPred = np.array(yPred[0])
-                                    annotationDataset.errorFP = np.array(errorFP[0])
-                                    annotationDataset.errorFN = np.array(errorFN[0])
-                                    annotationDataset.idxsSortedAxial = np.array(idxsSortedAxial[0])
-                                    annotationDataset.idxsSortedSagittal = np.array(idxsSortedSagittal[0])
-                                    annotationDataset.idxsSortedCoronal = np.array(idxsSortedCoronal[0])
-                                    annotationDataset.patientName = patientName[0]
-                                
-                            for (z1, z2, meta) in annotationDataloader:
-                                print (' - [main] patientName: {} || meta: {}'.format(patientName, meta))
-                                pbar.update(4)
-
-                print (' - [main] Time taken: ', round(time.time() - t0),2, 's')
         
     df = pd.DataFrame(dt_all)
     df.to_csv('dataloader1_table.csv', index=False)  # index=False 表示不保存索引
     print(f"finishe all!")
-"""
-Data: Z:\2021_HECKTOR_HNTumorAuto\_models\FocusNetV4ResV2-LR10e3I20__ValCenterFold5-B2-NewWindowing__CEF095B005__seed42\ckpt_epoch1000\images\Test\patches
-"""
-
-"""
-I have a pytorch dataset that reads 3D volumes, does some heavy processing, and retuns them. 
-I need to create an array of max length=N, that is shared between the workers. 
-So if a patients volume is already read by a worker, the other workers simply access that in shared memory. 
-
-These volumes are then read by another dataset that turns these volumes into slices, again with some heavy processing. 
-
-How do I build these dataset and dataloaders using torch.multiprocessing to do this?
-"""

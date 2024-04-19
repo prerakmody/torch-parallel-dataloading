@@ -19,7 +19,6 @@ import numpy as np
 from pathlib import Path
 import torch.multiprocessing as torchMP
 torchMP.set_start_method('spawn', force=True) # spawn is default in windows, fork is default in linux
-import pandas as pd
 print = functools.partial(print, flush=True)
 
 import warnings
@@ -41,8 +40,6 @@ class PointAndScribbleDataloader:
         self.annotationProcessesPIDs = []
 
         # Step 2 - Init funcs
-        print (' - [src/dataloader3.py] virtual cpus available: {} (doing dataloading to {}): '.format(
-            utils.getVirtualCPUCount(), self.dataloaderParams[config.KEY_ANNOTATIONLOADER][config.KEY_DEVICE]))
         self._initSharedVars()
         self._initWorkers()
 
@@ -102,6 +99,7 @@ class PointAndScribbleDataloader:
     def __len__(self):
 
         dataloaderLen = len(self.patientPaths) * self.sliceParams[config.KEY_PERVIEW_SLICES] * 3
+        # if 1: dataloaderLen = 40; print (' - [PointAndScribbleDataloader.__len__()] dataloader length is set to 40')
 
         if dataloaderLen == 0:
             print (' - [PointAndScribbleDataloader.__len__()] dataloader length is 0. Exiting...')
@@ -436,8 +434,6 @@ if __name__ == "__main__":
 
                                 pbar.update(dataloader.batchSize)
                                 counter += dataloader.batchSize
-                                90
-                                xCT = xCT/cuda
                                 # pdb.set_trace()
 
                                 # if counter > 60:
@@ -466,13 +462,3 @@ if __name__ == "__main__":
     df = pd.DataFrame(dt_all)
     df.to_csv('dataloader1_table.csv', index=False)  # index=False 表示不保存索引
     print(f"finishe all!")
-        """
-        [Win] conda activate hecktor-2022
-        [res-hpc-lo02] conda activate interactive-refinement
-        """ 
-
-        """
-        nohup python -u src/dataloader3.py > _logs/dataloader3-B4-W1-2-3-4.log 2>&1 &
-        tail -f _logs/dataloader3-B4-W1-2-3-4.log
-        """ 
-
