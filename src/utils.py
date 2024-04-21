@@ -568,7 +568,8 @@ def getPatientData(thisPatientPaths, sliceParams, patientName, verbose=False):
     xCT, xPET, yGT, yPred, errorFP, errorFN, idsSortedAxial, idsSortedSagittal, idsSortedCoronal = None, None, None, None, None, None, None, None, None 
 
     try:
-
+        
+        print (f" - [utils.getPatientData()] patientName={patientName}")
         arrayCT, _ = nrrd.read(thisPatientPaths[config.KEY_CT])
         if len(arrayCT.shape) != 3: print (' - [PointAndScribbleDataset._getPatientData()] CT volume is not 3D')        
 
