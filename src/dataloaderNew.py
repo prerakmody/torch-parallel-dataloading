@@ -164,6 +164,7 @@ class PointAndScribbleDataloader:
             device = self.dataloaderParams[config.KEY_ANNOTATIONLOADER][config.KEY_DEVICE]
             
             # Step 1 - Start epoch
+            print (' - [PointAndScribbleDataloader.__iter__()] Starting epoch')
             self.fillInputQueues()
             
             while True:
@@ -368,97 +369,86 @@ def collate_tensor_fn(batch):
     return torch.stack(batch, 0, out=out)
 
 if __name__ == "__main__":
-    for workers_nb in [1,2,4,8]:
-        for bs in [1,2,4,8]:
-            print(f"workers: {workers_nb}, batch size: {bs} ---------start--------")
-            
     
-            DIR_FILE = Path(__file__).resolve().parent.absolute() # ./src
-            DIR_ROOT = DIR_FILE.parent.absolute() # ./
-            DIR_DATA = DIR_ROOT / '_data'  
+    try:
+        DIR_FILE = Path(__file__).resolve().parent.absolute() # ./src
+        DIR_ROOT = DIR_FILE.parent.absolute() # ./
+        DIR_DATA = DIR_ROOT / '_data'  
 
-            # Step 1 - Dataloader Params
+        # Step 1 - Dataloader Params
+        if 1:
+
+            # Params Set 1
             if 1:
 
-                # Params Set 1
-                if 1:
+                dirParams = {
+                    config.KEY_DIR_DATA_OG: DIR_DATA / 'trial1',
+                    config.KEY_REGEX_CT: 'img1',
+                    config.KEY_REGEX_PET: 'img2',
+                    config.KEY_REGEX_GT: 'mask',
+                    config.KEY_REGEX_PRED: 'pred',
+                    config.KEY_EXT: config.EXT_NRRD,
+                    config.KEY_STRFMT_CT: 'nrrd_{}_{}{}'.format('{}', 'img1', config.EXT_NRRD),
+                    config.KEY_STRFMT_PET: 'nrrd_{}_{}{}'.format('{}', 'img2', config.EXT_NRRD),
+                    config.KEY_STRFMT_GT: 'nrrd_{}_{}{}'.format('{}', 'mask', config.EXT_NRRD),
+                    config.KEY_STRFMT_PRED: 'nrrd_{}_{}{}'.format('{}', 'maskpred', config.EXT_NRRD)
+                }
 
-                    dirParams = {
-                        config.KEY_DIR_DATA_OG: DIR_DATA / 'trial1',
-                        config.KEY_REGEX_CT: 'img1',
-                        config.KEY_REGEX_PET: 'img2',
-                        config.KEY_REGEX_GT: 'mask',
-                        config.KEY_REGEX_PRED: 'pred',
-                        config.KEY_EXT: config.EXT_NRRD,
-                        config.KEY_STRFMT_CT: 'nrrd_{}_{}{}'.format('{}', 'img1', config.EXT_NRRD),
-                        config.KEY_STRFMT_PET: 'nrrd_{}_{}{}'.format('{}', 'img2', config.EXT_NRRD),
-                        config.KEY_STRFMT_GT: 'nrrd_{}_{}{}'.format('{}', 'mask', config.EXT_NRRD),
-                        config.KEY_STRFMT_PRED: 'nrrd_{}_{}{}'.format('{}', 'maskpred', config.EXT_NRRD)
-                    }
+                sliceParams = {
+                    config.KEY_PERVIEW_SLICES: 5,
+                    config.KEY_KSIZE_SEGFAILURE: (3,3,3),
+                    config.KEY_LABEL: 1,
+                    config.KEY_INTERACTION_TYPE: [config.KEY_INTERACTION_SCRIBBLES], # [config.KEY_INTERACTION_POINTS, config.KEY_INTERACTION_SCRIBBLES]
+                    config.KEY_SCRIBBLE_TYPE: [config.KEY_SCRIBBLE_MEDIAL_AXIS] # config.KEY_SCRIBBLE_RANDOM, config.KEY_SCRIBBLE_MEDIAL_AXIS
+                }
 
-                    sliceParams = {
-                        config.KEY_PERVIEW_SLICES: 5,
-                        config.KEY_KSIZE_SEGFAILURE: (3,3,3),
-                        config.KEY_LABEL: 1,
-                        config.KEY_INTERACTION_TYPE: [config.KEY_INTERACTION_SCRIBBLES], # [config.KEY_INTERACTION_POINTS, config.KEY_INTERACTION_SCRIBBLES]
-                        config.KEY_SCRIBBLE_TYPE: [config.KEY_SCRIBBLE_MEDIAL_AXIS] # config.KEY_SCRIBBLE_RANDOM, config.KEY_SCRIBBLE_MEDIAL_AXIS
-                    }
-
-                    dataloaderParams = {
+                dataloaderParams = {
                         config.KEY_ANNOTATIONLOADER: {    
-                            config.KEY_ANNOTATIONLOADER_WORKERS: workers_nb
+                            config.KEY_ANNOTATIONLOADER_WORKERS: 4
                             , config.KEY_EPOCHS: 6 # [1,2]
-                            , config.KEY_BATCH_SIZE:bs
+                            , config.KEY_BATCH_SIZE:4
                             , config.KEY_QUEUE_MAXLEN: 30
                             , config.KEY_DEVICE: config.deviceGPU # [config.deviceGPU, config.deviceCPU]
                         }
                     }
             
-            # Step 2 - Dataloader loop
-            if 1:
+        # Step 2 - Dataloader loop
+        if 1:
 
-                # from viztracer import VizTracer
-                # tracer = VizTracer()
-                # tracer.start()
-                dataloader = None
-                try:
-                    
-                    dataloader = PointAndScribbleDataloader(dirParams, sliceParams, dataloaderParams, show=False, verbose=False)
-                    epochs = dataloaderParams[config.KEY_ANNOTATIONLOADER][config.KEY_EPOCHS]
-                    for epochId in range(epochs):
-                        print ('\n ---------------------------------------------- [epochId={}]'.format(epochId))
-                        t1 = time.time()
-                        with tqdm.tqdm(total=len(dataloader)) as pbar:
-                            counter = 0
-                            for (xCT, xPT, yGT, yPred, zFgd, zBgd, meta) in dataloader:
-
-                                pbar.update(dataloader.batchSize)
-                                counter += dataloader.batchSize
-                                # pdb.set_trace()
-
-                                # if counter > 60:
-                                #     print (' - [main()] Breaking after 10 iterations')
-                                #     break
-                        t2 = time.time()
-                        dt = t2-t1 
-                        print(f"time cost: {dt}, speed: {855/dt}")
-                        dt_all['workers'].append(workers_nb)
-                        dt_all['batch_size'].append(bs)
-                        dt_all['cost_time'].append(dt)
-                        dt_all['speed'].append(855/dt)
-                    print ('\n - [main()] Closing dataloader')
-                    dataloader.closeProcesses()
-                    print (' - [main()] Closed dataloader')
-                  
-          
-                except KeyboardInterrupt:
-                    # tracer.save()
-                    if dataloader is not None: dataloader.closeProcesses()
+            dataloader = None
+            try:
                 
-                except:
-                    traceback.print_exc()
-                    pdb.set_trace()
+                dataloader = PointAndScribbleDataloader(dirParams, sliceParams, dataloaderParams, show=False, verbose=False)
+                epochs = dataloaderParams[config.KEY_ANNOTATIONLOADER][config.KEY_EPOCHS]
+                for epochId in range(epochs):
+                    print ('\n ---------------------------------------------- [epochId={}]'.format(epochId))
+                    
+                    with tqdm.tqdm(total=len(dataloader)) as pbar:
+                        counter = 0
+                        for (xCT, xPT, yGT, yPred, zFgd, zBgd, meta) in dataloader:
 
-    df = pd.DataFrame(dt_all)
-    df.to_csv('dataloader1_table.csv', index=False)  # index=False 表示不保存索引
-    print(f"finishe all!")
+                            pbar.update(dataloader.batchSize)
+                            counter += dataloader.batchSize
+                            print (' -------------- meta: ', meta[0])
+                            # pdb.set_trace()
+
+                            # if counter > 20:
+                            #     print (' - [main()] Breaking after 10 iterations')
+                            #     pdb.set_trace()
+                    
+                print ('\n - [main()] Closing dataloader')
+                dataloader.closeProcesses()
+                print (' - [main()] Closed dataloader')
+                
+        
+            except KeyboardInterrupt:
+                # tracer.save()
+                if dataloader is not None: dataloader.closeProcesses()
+            
+            except:
+                traceback.print_exc()
+                pdb.set_trace()
+
+    except:
+        traceback.print_exc()
+        pdb.set_trace()

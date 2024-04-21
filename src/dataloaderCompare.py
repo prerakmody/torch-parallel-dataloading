@@ -92,7 +92,7 @@ if __name__ == "__main__":
         workerCountList, batchSizeList, totalEpochs = [4], [4,8], 1
         device = config.deviceCPU # config.deviceGPU
 
-        ############################################################## Step 2 - Test datasetBasic
+        ############################################################## Step 3 - Test datasetBasic
         print (' \n =====================================================> Testing datasetBasic.py')
         dataloader1ResultsObj = copy.deepcopy(resultsObj)
         if 1:
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                     dataloader1ResultsObj[config.KEY_TIMELIST].append(timeForEpochs)
                     dataloader1ResultsObj[config.KEY_ITERPERSEC].append(itersPerSec)
 
-        ############################################################### Step 3 - Test datasetNew
+        ############################################################### Step 4 - Test dataloaderNew
         print (' \n =====================================================> Testing dataloaderNew.py')
         dataloader2ResultsObj = copy.deepcopy(resultsObj)
         if 0:
@@ -137,7 +137,7 @@ if __name__ == "__main__":
                     dataloader2ResultsObj[config.KEY_TIMELIST].append(timeForEpochs)
                     dataloader2ResultsObj[config.KEY_ITERPERSEC].append(itersPerSec)
         
-        ############################################################### Step 4 - Print results
+        ############################################################### Step 5 - Print results
         if 1:
             pprint.pprint(dataloader1ResultsObj)
             pprint.pprint(dataloader2ResultsObj)

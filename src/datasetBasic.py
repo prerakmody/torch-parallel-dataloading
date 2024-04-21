@@ -9,13 +9,10 @@ import nrrd
 import time
 import tqdm
 import torch
-import random
-# import torchio
 import traceback
 import torchvision
 import numpy as np
 from pathlib import Path
-import pandas as pd
 
 class PointAndScribbleDataset(torch.utils.data.Dataset):
     
@@ -445,89 +442,80 @@ class PointAndScribbleDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     
-    dt_all = {'workers': [],
-                        'batch_size': [],
-                        'cost_time': [],
-                        'speed': [],
-                        }
-    for workers_nb in [1,2,4,8]:
-        for bs in [1,2,4,8]:
-            print(f"workers: {workers_nb}, batch size: {bs} ---------start--------")
-                    
-            DIR_FILE = Path(__file__).resolve().parent.absolute() # ./src
-            DIR_ROOT = DIR_FILE.parent.absolute() # ./
-            DIR_DATA = DIR_ROOT / '_data'    
+    try:
+        DIR_FILE = Path(__file__).resolve().parent.absolute() # ./src
+        DIR_ROOT = DIR_FILE.parent.absolute() # ./
+        DIR_DATA = DIR_ROOT / '_data'    
 
-            # Step 1 - Dataloader params
-            if 1:
-                dirParams = {
-                    config.KEY_DIR_DATA_OG: DIR_DATA / 'trial1',
-                    config.KEY_REGEX_CT: 'img1',
-                    config.KEY_REGEX_PET: 'img2',
-                    config.KEY_REGEX_GT: 'mask',
-                    config.KEY_REGEX_PRED: 'pred',
-                    config.KEY_EXT: config.EXT_NRRD,
-                    config.KEY_STRFMT_CT: 'nrrd_{}_{}{}'.format('{}', 'img1', config.EXT_NRRD),
-                    config.KEY_STRFMT_PET: 'nrrd_{}_{}{}'.format('{}', 'img2', config.EXT_NRRD),
-                    config.KEY_STRFMT_GT: 'nrrd_{}_{}{}'.format('{}', 'mask', config.EXT_NRRD),
-                    config.KEY_STRFMT_PRED: 'nrrd_{}_{}{}'.format('{}', 'maskpred', config.EXT_NRRD)
-                }
+        # Step 1 - Dataloader params
+        if 1:
+            dirParams = {
+                config.KEY_DIR_DATA_OG: DIR_DATA / 'trial1',
+                config.KEY_REGEX_CT: 'img1',
+                config.KEY_REGEX_PET: 'img2',
+                config.KEY_REGEX_GT: 'mask',
+                config.KEY_REGEX_PRED: 'pred',
+                config.KEY_EXT: config.EXT_NRRD,
+                config.KEY_STRFMT_CT: 'nrrd_{}_{}{}'.format('{}', 'img1', config.EXT_NRRD),
+                config.KEY_STRFMT_PET: 'nrrd_{}_{}{}'.format('{}', 'img2', config.EXT_NRRD),
+                config.KEY_STRFMT_GT: 'nrrd_{}_{}{}'.format('{}', 'mask', config.EXT_NRRD),
+                config.KEY_STRFMT_PRED: 'nrrd_{}_{}{}'.format('{}', 'maskpred', config.EXT_NRRD)
+            }
 
-                sliceParams = {
-                    config.KEY_PERVIEW_SLICES: 5,
-                    config.KEY_KSIZE_SEGFAILURE: (3,3,3),
-                    config.KEY_LABEL: 1,
-                    config.KEY_INTERACTION_TYPE: [config.KEY_INTERACTION_SCRIBBLES], # [config.KEY_INTERACTION_POINTS, config.KEY_INTERACTION_SCRIBBLES]
-                    config.KEY_SCRIBBLE_TYPE: [config.KEY_SCRIBBLE_MEDIAL_AXIS] # config.KEY_SCRIBBLE_RANDOM, config.KEY_SCRIBBLE_MEDIAL_AXIS
-                }
-                
-                # Define transformations
-                transform = torchvision.transforms.Compose([
-                #     transforms.Resize((256, 256)),
-                #     transforms.ToTensor()
-                ])
+            sliceParams = {
+                config.KEY_PERVIEW_SLICES: 5,
+                config.KEY_KSIZE_SEGFAILURE: (3,3,3),
+                config.KEY_LABEL: 1,
+                config.KEY_INTERACTION_TYPE: [config.KEY_INTERACTION_SCRIBBLES], # [config.KEY_INTERACTION_POINTS, config.KEY_INTERACTION_SCRIBBLES]
+                config.KEY_SCRIBBLE_TYPE: [config.KEY_SCRIBBLE_MEDIAL_AXIS] # config.KEY_SCRIBBLE_RANDOM, config.KEY_SCRIBBLE_MEDIAL_AXIS
+            }
             
-            # just PointAndScribbleDataset (baseline)
-            if 1:
-                # Step 2 - Create dataset
-                dataset = PointAndScribbleDataset(dirParams, sliceParams, transform=transform)
-                
-                # Step 3 - Create dataloader
-                epochs = 4
-                dataloader = torch.utils.data.DataLoader(dataset, batch_size=bs, shuffle=False
-                                                        , num_workers=workers_nb #, prefetch_factor=2
-                                                        , pin_memory=True, pin_memory_device=config.nameGPU
-                                                        # , num_workers=0, pin_memory=True
-                                                        )
-                
-                # Iterate over the dataset
-                for epoch_ in range(epochs):
-                    print (' ------------------------------------- Epoch: ', epoch_)
-                    t1 = time.time()
-                    with tqdm.tqdm(total=len(dataset), desc='Epoch: {}'.format(epoch_)) as pbar:
-                        for i, (x1,x2,y1,y2,z1,z2, meta) in enumerate(dataloader):
-                            x1 = x1.to(config.nameGPU)
-                            x2 = x2.to(config.nameGPU)
-                            y1 = y1.to(config.nameGPU)
-                            y2 = y2.to(config.nameGPU)
-                            z1 = z1.to(config.nameGPU)
-                            z2 = z2.to(config.nameGPU)
-                            # print (' -------------- meta: ', meta)
-                            # dataset.show(x1, x2, y1, y2, z1, z2, meta, sliceCount=7)
-                            
-                            # if i == 5:
-                            #     break
-                            # pdb.set_trace()
-                            pbar.update(x1.shape[0])
-                    t2 = time.time()
-                    dt = t2-t1 
-                    print(f"time cost: {dt}, speed: {855/dt}")
-                    dt_all['workers'].append(workers_nb)
-                    dt_all['batch_size'].append(bs)
-                    dt_all['cost_time'].append(dt)
-                    dt_all['speed'].append(855/dt)
-          
+            # Define transformations
+            transform = torchvision.transforms.Compose([
+            #     transforms.Resize((256, 256)),
+            #     transforms.ToTensor()
+            ])
         
-    df = pd.DataFrame(dt_all)
-    df.to_csv('dataloader1_table.csv', index=False)  # index=False 表示不保存索引
-    print(f"finishe all!")
+        # Step 2 - Create dataset and dataloader
+        if 1:
+            
+            # Step 2.1 - Set dataloader params
+            batchSize   = 4
+            workerCount = 4
+
+            # Step 2.2 - Create dataset
+            dataset = PointAndScribbleDataset(dirParams, sliceParams, transform=transform)
+            
+            # Step 2.3 - Create dataloader
+            epochs = 4
+            dataloader = torch.utils.data.DataLoader(dataset, batch_size=batchSize, shuffle=False
+                                                    , num_workers=workerCount #, prefetch_factor=2
+                                                    , pin_memory=True, pin_memory_device=config.nameGPU
+                                                    )
+                
+        # Iterate over the dataset
+        for epoch_ in range(epochs):
+            print (' ------------------------------------- Epoch: ', epoch_)
+            t1 = time.time()
+            with tqdm.tqdm(total=len(dataset), desc='Epoch: {}'.format(epoch_)) as pbar:
+                for i, (x1,x2,y1,y2,z1,z2, meta) in enumerate(dataloader):
+                    x1 = x1.to(config.nameGPU)
+                    x2 = x2.to(config.nameGPU)
+                    y1 = y1.to(config.nameGPU)
+                    y2 = y2.to(config.nameGPU)
+                    z1 = z1.to(config.nameGPU)
+                    z2 = z2.to(config.nameGPU)
+                    print (' -------------- meta: ', meta[0])
+                    # dataset.show(x1, x2, y1, y2, z1, z2, meta, sliceCount=7)
+                    
+                    if i == 5:
+                        # break
+                        pdb.set_trace()
+
+                    pbar.update(x1.shape[0])
+            t2 = time.time()
+            dt = t2-t1 
+    
+    except:
+        traceback.print_exc()
+        pdb.set_trace()
