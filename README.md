@@ -36,8 +36,8 @@ We varied two parameters in our experiments:
 - Batch Size: We evaluated different batch sizes ranging from 1 to 8.
 
 ## Results
-### Impact on Training Speed
-We observed that increasing the number of worker processes generally led to faster data loading and training speeds. However, the magnitude of improvement varied depending on factors such as batch size and hardware configuration.
+### Impact on data loading speed
+We observed that increasing the number of worker processes generally led to faster data loading and therefore may lead to faster training. However, the magnitude of improvement varied depending on factors such as batch size and hardware configuration.
 
 For smaller batch sizes (e.g., 1 or 2), doubling the number of workers resulted in significant speedups, especially on systems with multiple CPU cores or GPUs. However, as the batch size increased, the marginal improvement from adding more workers diminished.
 ![image](https://github.com/prerakmody/torch-parallel-dataloading/assets/34941987/268e5968-fe22-4c2c-8446-87f5e04cd738)
@@ -48,8 +48,6 @@ For smaller batch sizes (e.g., 1 or 2), doubling the number of workers resulted 
 ### Resource Utilization
 We also monitored resource utilization during data loading with varying worker counts. With a higher number of workers, we observed increased CPU and memory usage, which is expected due to the parallelism introduced by additional processes. Users should consider their hardware constraints and resource availability when choosing the optimal worker count.
 
-### Stability and Scalability
-While increasing the worker count generally improved performance, we encountered stability issues when using a very high number of workers on certain hardware configurations. Users should perform careful experimentation and testing to determine the optimal worker count for their specific setup.
 
 ## Best Practices and Recommendations
 Based on our experiments, we provide the following best practices and recommendations for optimizing DataLoader performance:
