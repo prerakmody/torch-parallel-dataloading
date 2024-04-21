@@ -36,10 +36,11 @@ We varied two parameters in our experiments:
 - Batch Size: We evaluated different batch sizes ranging from 1 to 8.
 
 ## Results
-### mpact on Training Speed
+### Impact on Training Speed
 We observed that increasing the number of worker processes generally led to faster data loading and training speeds. However, the magnitude of improvement varied depending on factors such as batch size and hardware configuration.
 
 For smaller batch sizes (e.g., 1 or 2), doubling the number of workers resulted in significant speedups, especially on systems with multiple CPU cores or GPUs. However, as the batch size increased, the marginal improvement from adding more workers diminished.
+![image](https://github.com/prerakmody/torch-parallel-dataloading/assets/34941987/268e5968-fe22-4c2c-8446-87f5e04cd738)
 
 ### Resource Utilization
 We also monitored resource utilization during data loading with varying worker counts. With a higher number of workers, we observed increased CPU and memory usage, which is expected due to the parallelism introduced by additional processes. Users should consider their hardware constraints and resource availability when choosing the optimal worker count.
