@@ -42,6 +42,9 @@ We observed that increasing the number of worker processes generally led to fast
 For smaller batch sizes (e.g., 1 or 2), doubling the number of workers resulted in significant speedups, especially on systems with multiple CPU cores or GPUs. However, as the batch size increased, the marginal improvement from adding more workers diminished.
 ![image](https://github.com/prerakmody/torch-parallel-dataloading/assets/34941987/268e5968-fe22-4c2c-8446-87f5e04cd738)
 
+
+![image](https://github.com/prerakmody/torch-parallel-dataloading/assets/34941987/1f67a323-217e-44c5-970f-eaaa61f14b46)
+
 ### Resource Utilization
 We also monitored resource utilization during data loading with varying worker counts. With a higher number of workers, we observed increased CPU and memory usage, which is expected due to the parallelism introduced by additional processes. Users should consider their hardware constraints and resource availability when choosing the optimal worker count.
 
